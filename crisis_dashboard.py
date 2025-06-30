@@ -67,23 +67,32 @@ class DashboardApp:
         """Create sidebar controls"""
         st.sidebar.title("🚨 Crisis Detector")
         st.sidebar.markdown("---")
-        
+
         # Business name input
         business_name = st.sidebar.text_input(
-            "Business Name to Monitor",
+        "Business Name to Monitor",
             value="McDonald's",
             help="Enter the business/brand name you want to monitor"
         )
-        
+
+        # Crisis keyword input
+        st.sidebar.subheader("Crisis Keywords")
+        custom_keywords = st.sidebar.text_area(
+            "Enter keywords (comma-separated)",
+            value="boycott, scandal, scam, fraud, terrible, worst",
+            help="These keywords will be used to detect potential crisis posts"
+        )
+        keyword_list = [kw.strip().lower() for kw in custom_keywords.split(',') if kw.strip()]
+
         # Data collection settings
         st.sidebar.subheader("Data Collection")
-        
+
         subreddits = st.sidebar.multiselect(
             "Subreddits to Monitor",
-            ['all', 'gaming', 'console' 'controller issue', 'boycott nintendo', 'no innovation', 'negative' ],
+            ['all', 'gaming', 'console', 'controller issue', 'boycott nintendo', 'no innovation', 'negative'],
             default=['all', 'gaming']
         )
-        
+
         post_limit = st.sidebar.slider(
             "Posts per Subreddit",
             min_value=10,
@@ -91,10 +100,10 @@ class DashboardApp:
             value=30,
             step=10
         )
-        
+
         # Crisis detection settings
         st.sidebar.subheader("Crisis Detection")
-        
+
         lookback_hours = st.sidebar.slider(
             "Analysis Time Window (hours)",
             min_value=6,
@@ -102,44 +111,52 @@ class DashboardApp:
             value=24,
             step=6
         )
-        
+
         # Data collection button
         if st.sidebar.button("🔄 Collect Fresh Data", type="primary"):
             with st.spinner("Collecting social media data..."):
                 try:
+                    # Update detector keywords dynamically
+                    self.detector.crisis_keywords = keyword_list
+
                     # Collect data
                     new_data = self.collector.collect_reddit_data(
-                        business_name, 
-                        subreddits=subreddits, 
-                        limit=post_limit
+                        business_name=business_name,
+                        subreddits=subreddits,
+                        limit=post_limit,
+                        crisis_keywords=keyword_list
                     )
-                    
+
                     if not new_data.empty:
                         st.session_state.data = new_data
-                        
+
                         # Process data
                         st.session_state.processed_data = self.detector.process_data(new_data)
-                        
+
                         # Generate crisis report
                         st.session_state.crisis_report = self.detector.detect_crisis(
-                            st.session_state.processed_data, 
+                            st.session_state.processed_data,
                             lookback_hours=lookback_hours
                         )
-                        
+
                         st.sidebar.success(f"✅ Collected {len(new_data)} posts!")
                     else:
                         st.sidebar.error("❌ No data collected. Try different settings.")
-                        
+
                 except Exception as e:
                     st.sidebar.error(f"❌ Error: {str(e)}")
-        
+
         # Load existing data button
         if st.sidebar.button("📁 Load Existing Data"):
             try:
                 if os.path.exists('data/processed_data.csv'):
                     st.session_state.processed_data = pd.read_csv('data/processed_data.csv')
+
+                    # Update detector keywords before analysis
+                    self.detector.crisis_keywords = keyword_list
+
                     st.session_state.crisis_report = self.detector.detect_crisis(
-                        st.session_state.processed_data, 
+                        st.session_state.processed_data,
                         lookback_hours=lookback_hours
                     )
                     st.sidebar.success("✅ Data loaded successfully!")
@@ -147,8 +164,9 @@ class DashboardApp:
                     st.sidebar.warning("⚠️ No existing data found.")
             except Exception as e:
                 st.sidebar.error(f"❌ Error loading data: {str(e)}")
-        
+
         return business_name, lookback_hours
+
     
     def display_crisis_overview(self):
         """Display crisis overview metrics"""

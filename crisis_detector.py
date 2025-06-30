@@ -4,6 +4,7 @@ import numpy as np
 from textblob import TextBlob
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from datetime import datetime, timedelta
+import pytz
 import re
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -90,8 +91,13 @@ class CrisisDetector:
         
         print("Processing social media data...")
         
-        # Clean text
-        df['cleaned_text'] = df['text'].apply(self.clean_text)
+        # Clean text - handle both 'text' and 'title' columns
+        text_column = 'text' if 'text' in df.columns else 'title'
+        df['cleaned_text'] = df[text_column].fillna('').apply(self.clean_text)
+        
+        # If both text and title exist, combine them
+        if 'text' in df.columns and 'title' in df.columns:
+            df['cleaned_text'] = (df['title'].fillna('') + ' ' + df['text'].fillna('')).apply(self.clean_text)
         
         # Analyze sentiment
         sentiment_results = df['cleaned_text'].apply(self.analyze_sentiment)
@@ -104,33 +110,77 @@ class CrisisDetector:
         # Combine all results
         processed_df = pd.concat([df, sentiment_df, crisis_df], axis=1)
         
-        # Calculate engagement-weighted sentiment
+        # Calculate engagement-weighted sentiment using 'score' column
         processed_df['engagement_score'] = processed_df['score'].fillna(0)
-        processed_df['weighted_sentiment'] = processed_df['final_score'] * np.log1p(processed_df['engagement_score'])
+        processed_df['weighted_sentiment'] = processed_df['final_score'] * np.log1p(abs(processed_df['engagement_score']))
         
         return processed_df
     
     def detect_crisis(self, df, lookback_hours=24):
         """Detect potential crisis situations"""
+        # Initialize default return values
+        default_result = {
+            'crisis_level': 'low',
+            'crisis_score': 0,
+            'total_posts': 0,
+            'negative_ratio': 0,
+            'avg_sentiment': 0,
+            'alerts': [],
+            'recommendations': ['Continue regular monitoring'],
+            'top_negative_posts': []
+        }
+        
         if df.empty:
-            return {
-                'crisis_level': 'low',
-                'crisis_score': 0,
-                'alerts': [],
-                'recommendations': []
-            }
+            default_result['alerts'] = ['No data available']
+            default_result['recommendations'] = ['Increase data collection']
+            return default_result
         
-        # Filter recent data
-        cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
-        recent_df = df[pd.to_datetime(df['created_date']) >= cutoff_time].copy()
+        # Handle timezone-aware datetime comparison
+        try:
+            # Convert created_date to datetime if it's not already
+            df['created_date'] = pd.to_datetime(df['created_date'], errors='coerce')
+            
+            # Remove rows with invalid dates
+            df = df.dropna(subset=['created_date'])
+            
+            if df.empty:
+                default_result['alerts'] = ['No valid date data available']
+                return default_result
+            
+            # Create cutoff_time - make it timezone-aware if the data is timezone-aware
+            cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
+            
+            # Check if the datetime column is timezone-aware
+            if df['created_date'].dt.tz is not None:
+                # If data is timezone-aware, make cutoff_time timezone-aware too
+                if cutoff_time.tzinfo is None:
+                    cutoff_time = pytz.UTC.localize(cutoff_time)
+            else:
+                # If data is timezone-naive, ensure cutoff_time is also naive
+                if cutoff_time.tzinfo is not None:
+                    cutoff_time = cutoff_time.replace(tzinfo=None)
+            
+            # Filter recent data
+            recent_df = df[df['created_date'] >= cutoff_time].copy()
+            
+            # If no recent data, use all data but add a warning
+            if recent_df.empty:
+                recent_df = df.copy()
+                default_result['alerts'].append(f'No data from last {lookback_hours} hours, analyzing all available data')
+            
+        except Exception as e:
+            print(f"Warning: Error in datetime filtering: {e}")
+            # Fallback: use all data if datetime filtering fails
+            recent_df = df.copy()
+            default_result['alerts'].append('Date filtering failed, analyzing all available data')
         
-        if recent_df.empty:
-            return {
-                'crisis_level': 'low',
-                'crisis_score': 0,
-                'alerts': ['No recent data available'],
-                'recommendations': ['Increase monitoring frequency']
-            }
+        # Ensure we have required columns
+        required_columns = ['final_sentiment', 'final_score', 'crisis_score', 'engagement_score']
+        for col in required_columns:
+            if col not in recent_df.columns:
+                print(f"Warning: Missing column {col}")
+                default_result['alerts'].append(f'Missing required data: {col}')
+                return default_result
         
         # Calculate crisis indicators
         total_posts = len(recent_df)
@@ -140,18 +190,22 @@ class CrisisDetector:
         avg_sentiment = recent_df['final_score'].mean()
         crisis_keyword_posts = len(recent_df[recent_df['crisis_score'] > 0])
         
+        # Calculate high engagement threshold safely
+        engagement_threshold = recent_df['engagement_score'].quantile(0.75) if len(recent_df) > 0 else 0
         high_engagement_negative = len(recent_df[
             (recent_df['final_sentiment'] == 'negative') & 
-            (recent_df['engagement_score'] > recent_df['engagement_score'].quantile(0.75))
+            (recent_df['engagement_score'] > engagement_threshold)
         ])
         
         # Calculate overall crisis score
-        crisis_score = (
-            (negative_ratio * 40) +  # 40% weight to negative ratio
-            (abs(avg_sentiment) * 30 if avg_sentiment < 0 else 0) +  # 30% weight to sentiment
-            (crisis_keyword_posts / total_posts * 20) +  # 20% weight to crisis keywords
-            (high_engagement_negative / total_posts * 10)  # 10% weight to viral negative posts
-        )
+        crisis_score = 0
+        if total_posts > 0:
+            crisis_score = (
+                (negative_ratio * 40) +  # 40% weight to negative ratio
+                (abs(avg_sentiment) * 30 if avg_sentiment < 0 else 0) +  # 30% weight to sentiment
+                ((crisis_keyword_posts / total_posts) * 20) +  # 20% weight to crisis keywords
+                ((high_engagement_negative / total_posts) * 10)  # 10% weight to viral negative posts
+            )
         
         # Determine crisis level
         if crisis_score >= 60:
@@ -196,6 +250,26 @@ class CrisisDetector:
                 "Document patterns for future reference"
             ])
         
+        # Get top negative posts safely
+        top_negative_posts = []
+        try:
+            negative_posts_df = recent_df[recent_df['final_sentiment'] == 'negative']
+            if not negative_posts_df.empty:
+                columns_to_include = []
+                if 'text' in negative_posts_df.columns:
+                    columns_to_include.append('text')
+                elif 'title' in negative_posts_df.columns:
+                    columns_to_include.append('title')
+                
+                if 'platform' in negative_posts_df.columns:
+                    columns_to_include.append('platform')
+                
+                columns_to_include.append('engagement_score')
+                
+                top_negative_posts = negative_posts_df.nlargest(5, 'engagement_score')[columns_to_include].to_dict('records')
+        except Exception as e:
+            print(f"Warning: Error getting top negative posts: {e}")
+        
         return {
             'crisis_level': crisis_level,
             'crisis_score': round(crisis_score, 2),
@@ -204,7 +278,7 @@ class CrisisDetector:
             'avg_sentiment': round(avg_sentiment, 3),
             'alerts': alerts,
             'recommendations': recommendations,
-            'top_negative_posts': recent_df[recent_df['final_sentiment'] == 'negative'].nlargest(5, 'engagement_score')[['text', 'platform', 'engagement_score']].to_dict('records')
+            'top_negative_posts': top_negative_posts
         }
     
     def generate_insights(self, df):
@@ -215,10 +289,10 @@ class CrisisDetector:
         insights = {
             'summary': {
                 'total_posts': len(df),
-                'platforms': df['platform'].value_counts().to_dict(),
-                'sentiment_distribution': df['final_sentiment'].value_counts().to_dict(),
-                'avg_sentiment': df['final_score'].mean(),
-                'crisis_posts': len(df[df['crisis_score'] > 0])
+                'platforms': df['platform'].value_counts().to_dict() if 'platform' in df.columns else {},
+                'sentiment_distribution': df['final_sentiment'].value_counts().to_dict() if 'final_sentiment' in df.columns else {},
+                'avg_sentiment': df['final_score'].mean() if 'final_score' in df.columns else 0,
+                'crisis_posts': len(df[df['crisis_score'] > 0]) if 'crisis_score' in df.columns else 0
             },
             'trends': self._analyze_trends(df),
             'top_keywords': self._extract_keywords(df)
@@ -228,31 +302,50 @@ class CrisisDetector:
     
     def _analyze_trends(self, df):
         """Analyze sentiment trends over time"""
-        df['date'] = pd.to_datetime(df['created_date']).dt.date
-        daily_sentiment = df.groupby('date')['final_score'].mean()
-        
-        return {
-            'daily_sentiment': daily_sentiment.to_dict(),
-            'trend_direction': 'improving' if daily_sentiment.iloc[-1] > daily_sentiment.iloc[0] else 'declining'
-        }
+        try:
+            if 'created_date' not in df.columns or 'final_score' not in df.columns:
+                return {'daily_sentiment': {}, 'trend_direction': 'unknown'}
+                
+            df['date'] = pd.to_datetime(df['created_date'], errors='coerce').dt.date
+            df = df.dropna(subset=['date'])
+            
+            if df.empty:
+                return {'daily_sentiment': {}, 'trend_direction': 'unknown'}
+                
+            daily_sentiment = df.groupby('date')['final_score'].mean()
+            
+            return {
+                'daily_sentiment': daily_sentiment.to_dict(),
+                'trend_direction': 'improving' if len(daily_sentiment) > 1 and daily_sentiment.iloc[-1] > daily_sentiment.iloc[0] else 'declining'
+            }
+        except Exception as e:
+            print(f"Warning: Error in trend analysis: {e}")
+            return {'daily_sentiment': {}, 'trend_direction': 'unknown'}
     
     def _extract_keywords(self, df):
         """Extract most common words from negative posts"""
-        negative_texts = df[df['final_sentiment'] == 'negative']['cleaned_text']
-        if negative_texts.empty:
+        try:
+            if 'final_sentiment' not in df.columns or 'cleaned_text' not in df.columns:
+                return []
+                
+            negative_texts = df[df['final_sentiment'] == 'negative']['cleaned_text']
+            if negative_texts.empty:
+                return []
+            
+            all_text = ' '.join(negative_texts.fillna(''))
+            words = re.findall(r'\b\w+\b', all_text.lower())
+            
+            # Remove common stop words
+            stop_words = set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'])
+            filtered_words = [word for word in words if word not in stop_words and len(word) > 2]
+            
+            from collections import Counter
+            word_freq = Counter(filtered_words)
+            
+            return word_freq.most_common(10)
+        except Exception as e:
+            print(f"Warning: Error in keyword extraction: {e}")
             return []
-        
-        all_text = ' '.join(negative_texts)
-        words = re.findall(r'\b\w+\b', all_text.lower())
-        
-        # Remove common stop words
-        stop_words = set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'])
-        filtered_words = [word for word in words if word not in stop_words and len(word) > 2]
-        
-        from collections import Counter
-        word_freq = Counter(filtered_words)
-        
-        return word_freq.most_common(10)
 
 # Example usage
 if __name__ == "__main__":
@@ -260,8 +353,21 @@ if __name__ == "__main__":
     
     # Load your data
     try:
-        df = pd.read_csv('data/starbucks_twitter_data.csv')  # Change filename as needed
-        print(f"Loaded {len(df)} records")
+        # Try to load any available data file
+        import os
+        data_files = []
+        if os.path.exists('data'):
+            data_files = [f for f in os.listdir('data') if f.endswith('.csv')]
+        
+        if not data_files:
+            print("No CSV data files found in 'data' directory.")
+            print("Please ensure you have a CSV file with social media data.")
+            exit()
+        
+        # Use the first available data file
+        data_file = os.path.join('data', data_files[0])
+        df = pd.read_csv(data_file)
+        print(f"Loaded {len(df)} records from {data_file}")
         
         # Process the data
         processed_df = detector.process_data(df)
@@ -276,16 +382,47 @@ if __name__ == "__main__":
         print(f"Negative Ratio: {crisis_report['negative_ratio']:.1%}")
         
         print("\nAlerts:")
-        for alert in crisis_report['alerts']:
-            print(f"⚠️  {alert}")
+        if crisis_report['alerts']:
+            for alert in crisis_report['alerts']:
+                print(f"⚠️  {alert}")
+        else:
+            print("✅ No alerts")
         
         print("\nRecommendations:")
         for rec in crisis_report['recommendations']:
             print(f"💡 {rec}")
         
+        # Show top negative posts if any
+        if crisis_report['top_negative_posts']:
+            print(f"\nTop {len(crisis_report['top_negative_posts'])} Most Engaging Negative Posts:")
+            for i, post in enumerate(crisis_report['top_negative_posts'], 1):
+                text_key = 'text' if 'text' in post else 'title'
+                text_preview = post.get(text_key, 'No text')[:100] + "..." if len(str(post.get(text_key, ''))) > 100 else post.get(text_key, 'No text')
+                print(f"{i}. Score: {post.get('engagement_score', 0)} | {text_preview}")
+        
         # Save processed data
+        os.makedirs('data', exist_ok=True)
         processed_df.to_csv('data/processed_data.csv', index=False)
-        print("\nProcessed data saved to 'data/processed_data.csv'")
+        print(f"\nProcessed data saved to 'data/processed_data.csv'")
+        
+        # Generate additional insights
+        insights = detector.generate_insights(processed_df)
+        print(f"\n=== ADDITIONAL INSIGHTS ===")
+        print(f"Total posts analyzed: {insights['summary']['total_posts']}")
+        print(f"Platform distribution: {insights['summary']['platforms']}")
+        print(f"Sentiment distribution: {insights['summary']['sentiment_distribution']}")
+        print(f"Average sentiment: {insights['summary']['avg_sentiment']:.3f}")
+        print(f"Posts with crisis keywords: {insights['summary']['crisis_posts']}")
+        
+        if insights['top_keywords']:
+            print(f"\nTop keywords in negative posts:")
+            for word, count in insights['top_keywords'][:5]:
+                print(f"  {word}: {count}")
         
     except FileNotFoundError:
-        print("No data file found. Run the social_media_collector.py first!")
+        print("Data file not found. Please ensure you have a CSV file with social media data in the 'data' directory.")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        print("Please check your data file format and try again.")

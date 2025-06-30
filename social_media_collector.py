@@ -18,49 +18,68 @@ class SocialMediaCollector:
     def setup_twitter(self, bearer_token):
         self.twitter_api = tweepy.Client(bearer_token=bearer_token)
 
-    def collect_reddit_data(self, business_name, subreddits=['all'], limit=100):
+    def collect_reddit_data(self, business_name, subreddits=['all'], limit=100, crisis_keywords=None):
         posts_data = []
+
+    # Use default keywords if none provided
+        if crisis_keywords is None:
+            crisis_keywords = [
+                'boycott', 'scandal', 'lawsuit', 'illegal', 'scam', 'fraud',
+                'terrible', 'worst', 'disgusting', 'horrible', 'awful',
+                'discrimination', 'racist', 'sexist', 'harassment',
+                'food poisoning', 'sick', 'contaminated', 'expired',
+                'rude', 'unprofessional', 'manager', 'complaint'
+            ]
 
         for subreddit_name in subreddits:
             try:
                 subreddit = self.reddit.subreddit(subreddit_name)
 
-                # Search for posts mentioning the business
-                for post in subreddit.search(business_name, limit=limit, time_filter='week'):
+            # Enhanced query
+                query = f"{business_name} ({' OR '.join(crisis_keywords)})"
+
+                for post in subreddit.search(query, limit=limit, time_filter='week'):
+                    if len(post.title.split()) < 5 and len(post.selftext.split()) < 5:
+                        continue
+                    if post.score < 2:
+                        continue
+
                     posts_data.append({
-                        'platform': 'reddit',
-                        'id': post.id,
-                        'title': post.title,
-                        'text': post.selftext,
-                        'score': post.score,
-                        'created_date': datetime.fromtimestamp(post.created_utc),
-                        'subreddit': post.subreddit.display_name,
-                        'url': f"https://reddit.com{post.permalink}",
-                        'author': str(post.author) if post.author else 'deleted'
+                    'platform': 'reddit',
+                    'id': post.id,
+                    'title': post.title,
+                    'text': post.selftext,
+                    'score': post.score,
+                    'created_date': datetime.fromtimestamp(post.created_utc),
+                    'subreddit': post.subreddit.display_name,
+                    'url': f"https://reddit.com{post.permalink}",
+                    'author': str(post.author) if post.author else 'deleted'
                     })
 
-                    # Get top comments
                     post.comments.replace_more(limit=0)
-                    for comment in post.comments.list()[:5]: #Top 5 comments
+                    for comment in post.comments.list()[:5]:
+                        if comment.score < 1 or len(comment.body.split()) < 5:
+                            continue
                         posts_data.append({
-                            'platform': 'reddit',
-                            'id': comment.id,
-                            'title': f"Comment on: {post.title}",
-                            'text': comment.body,
-                            'score': comment.score,
-                            'created_date': datetime.fromtimestamp(comment.created_utc),
-                            'subreddit': post.subreddit.display_name,
-                            'url': f"https://reddit.com{comment.permalink}",
-                            'author': str(comment.author) if comment.author else 'deleted'
+                        'platform': 'reddit',
+                        'id': comment.id,
+                        'title': f"Comment on: {post.title}",
+                        'text': comment.body,
+                        'score': comment.score,
+                        'created_date': datetime.fromtimestamp(comment.created_utc),
+                        'subreddit': post.subreddit.display_name,
+                        'url': f"https://reddit.com{comment.permalink}",
+                        'author': str(comment.author) if comment.author else 'deleted'
                         })
 
-                time.sleep(1)  # Be respectful to API limits
-                
+                time.sleep(1)
+
             except Exception as e:
                 print(f"Error collecting from r/{subreddit_name}: {e}")
                 continue
-        
+
         return pd.DataFrame(posts_data)
+
     
     def collect_twitter_data(self, business_name, max_results=100):
         if not self.twitter_api:
