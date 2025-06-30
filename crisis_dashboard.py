@@ -12,7 +12,7 @@ import os
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="Social Media Crisis Detector",
+    page_title="Social Cubes",
     page_icon="🚨",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -65,7 +65,7 @@ class DashboardApp:
     
     def sidebar_controls(self):
         """Create sidebar controls"""
-        st.sidebar.title("🚨 Crisis Detector")
+        st.sidebar.title("🚨 Social Cubes")
         st.sidebar.markdown("---")
 
         # Business name input
