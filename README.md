@@ -1,1 +1,109 @@
-# Social_Cubes
+🚨 Social Cubes
+Advanced Social Media Crisis Detection System
+Show Image
+📖 What is Social Cubes?
+Social Cubes is an intelligent Social Media Crisis Detection System that provides automated monitoring and early warning capabilities for potential PR crises. It enables businesses to respond proactively before issues escalate and damage brand reputation through real-time sentiment analysis and crisis prediction.
+Show Image
+🎯 Problem Statement
+The Challenge
+
+73% of business crises originate from social media discussions
+Average response time to social media crises is 4-6 hours
+1 hour delay in crisis response can result in 5x increase in negative sentiment spread
+Manual monitoring is inefficient and misses early warning signs
+
+Real-World Impact
+
+United Airlines lost $1.4B in market value after a social media crisis
+Chipotle's stock dropped 42% following food safety issues amplified on social media
+Small businesses can lose 22% of customers after a single negative viral incident
+
+💡 Solution Overview
+Social Cubes provides comprehensive crisis detection through three core components:
+🔍 Real-Time Monitoring
+
+Automated social media data collection from Reddit and Twitter
+24/7 monitoring with customizable keywords and sentiment tracking
+Multi-platform aggregation for comprehensive coverage
+
+🧠 Intelligent Crisis Detection
+
+Advanced sentiment analysis using VADER and TextBlob
+Crisis keyword detection with customizable risk categories
+Engagement-weighted scoring for viral potential assessment
+Multi-factor crisis scoring algorithm
+
+📊 Actionable Insights Dashboard
+
+Real-time crisis level indicators (Low/Medium/High)
+Automated alert generation with specific recommendations
+Trend analysis and sentiment tracking over time
+Exportable reports for stakeholder communication
+
+🏗️ Technical Architecture
+📱 Data Sources (Reddit, Twitter)
+           ↓
+🔄 Data Collection Layer (Python APIs)
+           ↓
+⚙️ Processing Engine (Sentiment Analysis, Crisis Detection)
+           ↓
+📈 Real-time Dashboard (Streamlit)
+           ↓
+🚨 Alert System & Reporting
+🛠️ Tech Stack
+ComponentTechnologiesData CollectionReddit API (PRAW), Twitter API v2AI/ML ProcessingVADER Sentiment, TextBlob, scikit-learnFrontend & VisualizationStreamlit, Plotly, PandasBackendPython, REST APIs
+🚀 Getting Started
+Prerequisites
+
+Python 3.8+
+Reddit API credentials
+Twitter API v2 credentials
+
+Installation
+
+Clone the repository
+
+bashgit clone https://github.com/yourusername/social-cubes.git
+cd social-cubes
+
+Install dependencies
+
+bashpip install -r requirements.txt
+
+Configure API credentials
+
+bashcp config/config.example.py config/config.py
+# Edit config.py with your API credentials
+
+Run the application
+
+bashstreamlit run app.py
+📋 Features
+
+✅ Multi-platform Monitoring - Reddit, Twitter integration
+✅ Real-time Sentiment Analysis - VADER + TextBlob powered
+✅ Crisis Scoring Algorithm - Multi-factor risk assessment
+✅ Interactive Dashboard - Live updates and visualizations
+✅ Customizable Alerts - Configurable thresholds and keywords
+✅ Export Capabilities - Generate reports for stakeholders
+✅ Trend Analysis - Historical data and pattern recognition
+
+📈 Usage
+
+Setup Keywords: Configure monitoring keywords for your brand
+Set Thresholds: Define crisis severity levels
+Monitor Dashboard: Track real-time sentiment and engagement
+Receive Alerts: Get notified when potential crises are detected
+Export Reports: Generate comprehensive crisis reports
+
+🤝 Contributing
+We welcome contributions! Please see our Contributing Guidelines for details.
+
+Fork the repository
+Create your feature branch (git checkout -b feature/AmazingFeature)
+Commit your changes (git commit -m 'Add some AmazingFeature')
+Push to the branch (git push origin feature/AmazingFeature)
+Open a Pull Request
+
+📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
