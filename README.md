@@ -89,22 +89,22 @@ Deployment: Docker containerization, cloud-ready
 
 #### Clone the repository
 
-bashgit ```clone https://github.com/yourusername/social-cubes.git```
+```clone https://github.com/yourusername/social-cubes.git```
 
-```cd social-cubes```
+```cd social_cubes```
 
 #### Install dependencies
 
-bashpip ```install -r requirements.txt```
+```install -r requirements.txt```
 
 #### Configure API credentials
 
-bashcp ```config/config.example.py config/config.py
-#Edit config.py with your API credentials```
+```config/config.example.py config/config.py #Edit config.py with your API credentials```
+
 
 ####Run the application
 
-bash ```streamlit run app.py```
+```streamlit run app.py```
 
 ## 📋 Features
 
@@ -150,3 +150,6 @@ Open a Pull Request
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## ⚠️ Disclaimer
+This project is designed for educational and professional demonstration purposes. Ensure proper authorization and follow organizational security policies before implementing in production environments. The author is not responsible for any misuse of this system.
