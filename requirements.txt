@@ -1,0 +1,9 @@
+streamlit
+pandas
+plotly
+seaborn
+textblob
+vaderSentiment
+tweepy
+praw
+scikit-learn
