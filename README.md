@@ -5,6 +5,8 @@ Advanced Social Media Crisis Detection System
 
 Social Cubes is an intelligent Social Media Crisis Detection System that provides automated monitoring and early warning capabilities for potential PR crises. It enables businesses to respond proactively before issues escalate and damage brand reputation through real-time sentiment analysis and crisis prediction.
 
+![Screenshot 2025-07-01 143206](https://github.com/user-attachments/assets/1de40bba-ba84-40ce-9294-9e33af251736)
+
 🎯 Problem Statement
 
 The Challenge:
@@ -37,6 +39,9 @@ Social Cubes provides comprehensive crisis detection through three core componen
 
 >>Multi-factor crisis scoring algorithm
 
+![image](https://github.com/user-attachments/assets/6085a4ad-f7db-4cfd-9f2d-2ae246f570c4)
+
+
 📊 Actionable Insights Dashboard
 
 >>Real-time crisis level indicators (Low/Medium/High)
@@ -46,6 +51,9 @@ Social Cubes provides comprehensive crisis detection through three core componen
 >>Trend analysis and sentiment tracking over time
 
 >>Exportable reports for stakeholder communication
+
+![image](https://github.com/user-attachments/assets/e955b9c0-4d0e-45e3-880a-81c2947da7c2)
+
 
 ## 🏗️ Technical Architecture
 
