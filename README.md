@@ -112,7 +112,7 @@ Deployment: Docker containerization, cloud-ready
 
 ####Run the application
 
-```streamlit run app.py```
+```streamlit run crisis_dashboard.py```
 
 ## 📋 Features
 
